@@ -6,4 +6,4 @@ cd `dirname $script_full_name`
 script_path=`pwd`
 cd $curr_path
 
-nohup $script_path/object-storage-bin $script_path/config.json5 &
+nohup $script_path/object-storage $script_path/config.json5 & disown

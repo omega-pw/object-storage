@@ -1,13 +1,13 @@
 {
     "host": "127.0.0.1",
-    "port": 30001,
+    "port": 80,
     "log_cfg_path": "./conf/log4rs.yaml",
-    "aes_key": "3T0LLtKWXtRjn8wTij0QqHR3hgBFHbkhP0SsV2vJ2cE1",
+    "aes_key": "dLUDHMv+K1KHvo/fgeFP+I9PJvC+fH/kUzQax89As1c=",
     "oss": {
-        "access_key": "uIGNwUww6HWOGBdX",
-        "secret_key": "QJW8lf51iQALgLqiXxM9XT90f941jBIT",
+        "access_key": "FwSozAMJgYpEYeky",
+        "secret_key": "x8E2ZEz8YJG79bHs4zxXODz2z73fOOrN",
         "endpoint": "http://127.0.0.1:9000",
         "region": "us-east-1",
-        "bucket": "wangshop"
+        "bucket": "user-bucket"
     }
 }

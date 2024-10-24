@@ -1,3 +1,3 @@
 @echo off
 
-..\..\..\target\debug\object-storage-bin.exe .\config.json5
+..\..\target\debug\object-storage.exe .\config.json5
