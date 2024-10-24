@@ -1,0 +1,26 @@
+refresh_rate: 30 seconds
+appenders:
+  CONSOLE:
+    kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} {l} {t}: {m}{n}"
+  FILE:
+    kind: file
+    path: "log/all.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} {l} {t}: {m}{n}"
+  PRESSURE:
+    kind: file
+    path: "log/pressure.log"
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} {l} {t}: {m}{n}"
+root:
+  level: warn
+  appenders:
+    - CONSOLE
+    - FILE
+loggers:
+  native_common::middleware::count_stat:
+    level: info
+    appenders:
+      - PRESSURE

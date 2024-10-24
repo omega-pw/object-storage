@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "object-storage-lib",
+    "object-storage-sdk",
+    "object-storage-bin",
+]
+
+[workspace.package]
+authors = ["omega <398914521@qq.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"

@@ -1,0 +1,35 @@
+[package]
+name = "object-storage-lib"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "object-storage-lib is a file upload service based on s3."
+
+[dependencies]
+log = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+async-trait = "0.1"
+thiserror = "1"
+anyhow = "1"
+futures = "0.3"
+http = "1"
+headers = "0.4"
+rust-crypto = "0.2"
+tihu = "0.1"
+tihu-native = "0.1.7"
+hyper = { version = "1", features = ["http1", "http2", "server"] }
+sync_wrapper = { version = "1", features = ["futures"] }
+pin-project = "1"
+http-body-util = "0.1"
+multer = "3"
+tokio = "1"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+aws-types = "1"
+aws-smithy-http = "0.60"
+aws-sdk-s3 = "0.39"
+object-storage-sdk = { version = "0.1.0", path="../object-storage-sdk" }

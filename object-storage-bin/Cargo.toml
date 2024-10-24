@@ -1,0 +1,28 @@
+[package]
+name = "object-storage-bin"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "object-storage"
+path = "src/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4"
+log4rs = "1"
+base64 = "0.22"
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+json5 = "0.4"
+tihu-native = "0.1.7"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+hyper-util = { version = "0.1", features = ["tokio", "server", "http1", "http2"] }
+hyper = { version = "1", features = ["http1", "http2", "server"] }
+object-storage-lib = { path="../object-storage-lib" }
