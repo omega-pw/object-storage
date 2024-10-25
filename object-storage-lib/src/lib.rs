@@ -19,6 +19,9 @@ use tihu_native::http::Body;
 use tihu_native::http::BoxBody;
 use tihu_native::http::HttpHandler;
 
+const BLOB_PREFIX: &'static str = "/blob/";
+const API_PREFIX: &'static str = "/api/oss/";
+
 pub struct OssHandler {
     context: Arc<Context>,
 }
@@ -37,7 +40,7 @@ impl OssHandler {
 #[async_trait]
 impl HttpHandler for OssHandler {
     fn namespace(&self) -> &[&'static str] {
-        return &["/blob/", "/api/oss/"];
+        return &[BLOB_PREFIX, API_PREFIX];
     }
     async fn handle(
         &self,
@@ -65,7 +68,7 @@ async fn dispatch(
     prefix: &str,
 ) -> Result<Response<Body>, hyper::Error> {
     let (_, route) = request.uri().path().split_at(prefix.len());
-    let blob_prefix = "/blob/";
+    let blob_prefix = BLOB_PREFIX;
     if route.starts_with(blob_prefix) {
         let key = String::from_utf8_lossy(&route.as_bytes()[blob_prefix.len()..]).into_owned();
         if key.is_empty() {
@@ -75,14 +78,14 @@ async fn dispatch(
         } else {
             return action::storage::get(context, GetReq { key: key }).await;
         }
-    } else if route.starts_with("/api/oss/") {
+    } else if route.starts_with(API_PREFIX) {
         if &Method::GET == request.method() {
             let mut response = text_response("file not found!");
             *response.status_mut() = StatusCode::NOT_FOUND;
             return Ok(response);
         } else if &Method::POST == request.method() {
             match route {
-                "/api/oss/upload" => action::storage::put(context, request).await,
+                sdk::storage::UPLOAD_API => action::storage::put(context, request).await,
                 sdk::storage::DELETE_API => action::storage::delete(context, request).await,
                 _ => Ok(Response::new(Body::from(context.gen_no_such_api()))),
             }

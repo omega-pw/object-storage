@@ -8,6 +8,8 @@ pub struct GetReq {
     pub key: String,
 }
 
+pub const UPLOAD_API: &str = "/api/oss/upload";
+
 /**
  * 删除
  */
