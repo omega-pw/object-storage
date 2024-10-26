@@ -83,10 +83,23 @@ async fn dispatch(
             *response.status_mut() = StatusCode::NOT_FOUND;
             return Ok(response);
         } else if &Method::POST == request.method() {
-            match route {
-                sdk::storage::UPLOAD_API => action::storage::put(context, request).await,
-                sdk::storage::DELETE_API => action::storage::delete(context, request).await,
-                _ => Ok(Response::new(Body::from(context.gen_no_such_api()))),
+            let hash = request.headers().get("X-hash");
+            let hash = hash
+                .map(|hash| hash.to_str().map(|hash| hash.to_string()).ok())
+                .flatten();
+            if let Some(hash) = hash {
+                match route {
+                    sdk::storage::UPLOAD_API => action::storage::put(context, request, hash).await,
+                    sdk::storage::DELETE_API => {
+                        action::storage::delete(context, request, hash).await
+                    }
+                    _ => Ok(Response::new(Body::from(context.gen_no_such_api()))),
+                }
+            } else {
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from("BAD REQUEST"))
+                    .unwrap());
             }
         } else {
             return Ok(Response::new(Body::empty()));

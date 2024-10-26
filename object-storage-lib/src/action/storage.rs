@@ -53,6 +53,14 @@ impl Stream for FuturesStreamCompatByteStream {
     }
 }
 
+pub fn sha512(data: &[u8]) -> [u8; 64] {
+    let mut hasher = Sha512::new();
+    hasher.input(data);
+    let mut out: [u8; 64] = [0; 64];
+    hasher.result(&mut out);
+    return out;
+}
+
 async fn get_file_meta(
     context: &Context,
     key: &str,
@@ -330,22 +338,19 @@ pub struct PutResp {
 pub async fn put(
     context: Arc<Context>,
     req: Request<Incoming>,
+    hash: String,
 ) -> Result<Response<Body>, hyper::Error> {
     let boundary = req
         .headers()
         .get(CONTENT_TYPE)
         .and_then(|ct| ct.to_str().ok())
         .and_then(|ct| multer::parse_boundary(ct).ok());
-    let sha512 = req.headers().get("X-sha512");
-    let sha512 = sha512
-        .map(|sha512| sha512.to_str().map(|sha512| sha512.to_string()).ok())
-        .flatten();
-    if let (Some(boundary), Some(sha512)) = (boundary, sha512) {
+    if let Some(boundary) = boundary {
         let body_stream = BodyStream::new(req.into_body()).filter_map(|result| async move {
             result.map(|frame| frame.into_data().ok()).transpose()
         });
         let multipart = Multipart::new(body_stream, boundary);
-        let resp = match handle_multipart(&context, multipart, sha512).await {
+        let resp = match handle_multipart(&context, multipart, hash).await {
             Ok(key) => Ok(PutResp { key: key }),
             Err(err) => {
                 log::error!("请求格式不正确, {:?}", err);
@@ -383,8 +388,16 @@ async fn delete_file(
 pub async fn delete(
     context: Arc<Context>,
     req: Request<Incoming>,
+    hash: String,
 ) -> Result<Response<Body>, hyper::Error> {
     let req_body = req.into_body().collect().await?.to_bytes();
+    let actual_hash = BASE64_STANDARD.encode(&sha512(&req_body));
+    if actual_hash != hash {
+        return Ok(Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Body::from("BAD REQUEST"))
+            .unwrap());
+    }
     let resp = match serde_json::from_slice::<DeleteReq>(&req_body) {
         Ok(delete_req) => match delete_file(&context, &delete_req.key).await {
             Ok(()) => Ok(()),
