@@ -8,6 +8,8 @@ use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::primitives::ByteStreamError;
 use aws_sdk_s3::primitives::DateTimeFormat;
 use aws_sdk_s3::primitives::SdkBody;
+use base64::engine::Engine;
+use base64::prelude::BASE64_STANDARD;
 use chrono::DateTime;
 use chrono::Utc;
 use crypto::digest::Digest;
@@ -39,7 +41,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Poll;
-use tihu::base62;
 use tihu::LightString;
 use tihu_native::http::Body;
 use tihu_native::ErrNo;
@@ -183,14 +184,14 @@ fn validate_token(
     hash: &str,
     token: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = base62::decode(token)?;
+    let token = BASE64_STANDARD.decode(token)?;
     let aes_key = context.get_aes_key();
     let token = decrypt_by_aes_256(&token, &aes_key)?;
     if 64 + 8 != token.len() {
         log::error!("上传token长度不正确");
         return Err("Invalid token format.".into());
     }
-    let hash_in_token = base62::encode(&token[0..64]);
+    let hash_in_token = BASE64_STANDARD.encode(&token[0..64]);
     if hash_in_token != hash {
         log::error!("上传token里面的hash和sha512不一致");
         return Err("Token invalid.".into());
@@ -267,7 +268,7 @@ async fn handle_multipart(
                                         } else {
                                             let mut out: [u8; 64] = [0; 64];
                                             hasher.result(&mut out);
-                                            let actual_hash = base62::encode(&out);
+                                            let actual_hash = BASE64_STANDARD.encode(&out);
                                             if &actual_hash != hash.as_ref() {
                                                 log::error!("sha512和文件的实际hash不一致");
                                                 ret_opt.replace(Err(
@@ -318,7 +319,7 @@ async fn handle_multipart(
                                             // buffer.shutdown().await?;
                                             let mut out: [u8; 64] = [0; 64];
                                             hasher.lock().unwrap().result(&mut out);
-                                            let actual_hash = base62::encode(&out);
+                                            let actual_hash = BASE64_STANDARD.encode(&out);
                                             if &actual_hash != hash.as_ref() {
                                                 log::error!("sha512和文件的实际hash不一致");
                                                 if let Err(err) =
