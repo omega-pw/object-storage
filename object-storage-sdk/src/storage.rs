@@ -17,7 +17,6 @@ pub const DELETE_API: &str = "/api/oss/delete";
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DeleteReq {
     pub key: String,
-    pub token: String,
 }
 
 pub type DeleteResp = bool;

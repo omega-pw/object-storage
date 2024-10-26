@@ -1,7 +1,15 @@
 mod config;
+mod encrypt;
 
+use base64::engine::Engine;
+use base64::prelude::BASE64_STANDARD;
+use chrono::DateTime;
+use chrono::Utc;
 use config::Config;
+use encrypt::decrypt_by_aes_256;
+use hyper::body::Incoming;
 use hyper::service::service_fn;
+use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::tokio::TokioIo;
 use hyper_util::rt::TokioExecutor;
 use hyper_util::server::conn::auto;
@@ -15,6 +23,7 @@ use object_storage_lib::OssHandler;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tihu_native::http::Body;
 use tihu_native::http::HttpHandler;
 use tokio::net::TcpListener;
 
@@ -60,9 +69,74 @@ fn init_logger(log_cfg_path: Option<&str>) -> Result<(), anyhow::Error> {
     return Ok(());
 }
 
+fn validate_token(
+    aes_key: &[u8; 32],
+    hash: &str,
+    token: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let token = BASE64_STANDARD.decode(token)?;
+    let token = decrypt_by_aes_256(&token, aes_key)?;
+    if 64 + 8 != token.len() {
+        log::error!("上传token长度不正确");
+        return Err("Invalid token format.".into());
+    }
+    let hash_in_token = BASE64_STANDARD.encode(&token[0..64]);
+    if hash_in_token != hash {
+        log::error!("上传token里面的hash和sha512不一致");
+        return Err("Token invalid.".into());
+    }
+    let mut expire_time = [0u8; 8];
+    expire_time.copy_from_slice(&token[64..]);
+    let expire_time = i64::from_be_bytes(expire_time);
+    let expire_time = DateTime::from_timestamp_millis(expire_time).ok_or_else(
+        || -> Box<dyn std::error::Error + Send + Sync> {
+            log::error!("上传token里面的过期时间格式不正确");
+            return "Token invalid.".into();
+        },
+    )?;
+    let curr_time = Utc::now();
+    if curr_time > expire_time {
+        log::error!("上传token已过期");
+        return Err("Token expired.".into());
+    }
+    return Ok(());
+}
+
+async fn dispatch(
+    req: Request<Incoming>,
+    remote_addr: SocketAddr,
+    handler: Arc<impl HttpHandler>,
+    aes_key: [u8; 32],
+) -> Result<Response<Body>, hyper::Error> {
+    let route = req.uri().path();
+    if !route.starts_with(object_storage_lib::BLOB_PREFIX) {
+        let token = req.headers().get("X-token");
+        let token = token.map(|token| token.to_str().ok()).flatten();
+        let sha512 = req.headers().get("X-sha512");
+        let sha512 = sha512.map(|sha512| sha512.to_str().ok()).flatten();
+        if let (Some(token), Some(sha512)) = (token, sha512) {
+            if let Err(err) = validate_token(&aes_key, sha512, token) {
+                log::error!("check permission failed: {}", err);
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .body(Body::from("BAD REQUEST"))
+                    .unwrap());
+            }
+        } else {
+            return Ok(Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Body::from("BAD REQUEST"))
+                .unwrap());
+        }
+    }
+    let response = handler.handle(req, remote_addr, None).await?;
+    return Ok(response.map(From::from));
+}
+
 pub async fn start_http_service(
     handler: Arc<impl HttpHandler>,
     bind_addr: SocketAddr,
+    aes_key: [u8; 32],
 ) -> Result<(), anyhow::Error> {
     let listener = TcpListener::bind(bind_addr).await?;
     let actual_addr = listener.local_addr()?;
@@ -78,7 +152,7 @@ pub async fn start_http_service(
                     io,
                     service_fn(move |req| {
                         let handler = handler.clone();
-                        async move { handler.handle(req, remote_addr, None).await }
+                        dispatch(req, remote_addr, handler, aes_key)
                     }),
                 )
                 .await
@@ -105,7 +179,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let oss = config.oss;
     let handler = OssHandler::try_init_from_config(
         HandlerConfig {
-            aes_key: config.aes_key,
             oss: Oss {
                 access_key: oss.access_key.into(),
                 secret_key: oss.secret_key.into(),
@@ -119,6 +192,6 @@ async fn main() -> Result<(), anyhow::Error> {
     .await?;
     let bind_addr = SocketAddr::new(config.host, config.port);
     let handler = Arc::new(handler);
-    start_http_service(handler, bind_addr).await?;
+    start_http_service(handler, bind_addr, config.aes_key).await?;
     Ok(())
 }

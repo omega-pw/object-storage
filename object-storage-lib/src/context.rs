@@ -51,10 +51,6 @@ impl Context {
         return Ok(context);
     }
 
-    pub fn get_aes_key(&self) -> [u8; 32] {
-        return self.config.aes_key;
-    }
-
     pub fn get_oss_client(&self) -> Arc<Client> {
         return self.oss_client.clone();
     }

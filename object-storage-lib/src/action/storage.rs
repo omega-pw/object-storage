@@ -1,6 +1,5 @@
 use crate::context::Context;
 use crate::sdk;
-use crate::utils::decrypt_by_aes_256;
 use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::operation::get_object::GetObjectError;
 use aws_sdk_s3::operation::get_object_attributes::GetObjectAttributesOutput;
@@ -10,8 +9,6 @@ use aws_sdk_s3::primitives::DateTimeFormat;
 use aws_sdk_s3::primitives::SdkBody;
 use base64::engine::Engine;
 use base64::prelude::BASE64_STANDARD;
-use chrono::DateTime;
-use chrono::Utc;
 use crypto::digest::Digest;
 use crypto::sha2::Sha512;
 use futures::stream::Stream;
@@ -179,43 +176,10 @@ async fn consume_field_data<'a>(
     return Ok(());
 }
 
-fn validate_token(
-    context: &Context,
-    hash: &str,
-    token: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let token = BASE64_STANDARD.decode(token)?;
-    let aes_key = context.get_aes_key();
-    let token = decrypt_by_aes_256(&token, &aes_key)?;
-    if 64 + 8 != token.len() {
-        log::error!("上传token长度不正确");
-        return Err("Invalid token format.".into());
-    }
-    let hash_in_token = BASE64_STANDARD.encode(&token[0..64]);
-    if hash_in_token != hash {
-        log::error!("上传token里面的hash和sha512不一致");
-        return Err("Token invalid.".into());
-    }
-    let mut expire_time = [0u8; 8];
-    expire_time.copy_from_slice(&token[64..]);
-    let expire_time = i64::from_be_bytes(expire_time);
-    let expire_time = DateTime::from_timestamp_millis(expire_time).ok_or_else(
-        || -> Box<dyn std::error::Error + Send + Sync> {
-            log::error!("上传token里面的过期时间格式不正确");
-            return "Token invalid.".into();
-        },
-    )?;
-    let curr_time = Utc::now();
-    if curr_time > expire_time {
-        log::error!("上传token已过期");
-        return Err("Token expired.".into());
-    }
-    return Ok(());
-}
-
 async fn handle_multipart(
     context: &Arc<Context>,
     mut multipart: Multipart<'static>,
+    hash: String,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let mut field_map: HashMap<String, String> = HashMap::new();
     let mut ret_opt: Option<Result<String, Box<dyn std::error::Error + Send + Sync>>> = None;
@@ -231,11 +195,7 @@ async fn handle_multipart(
                 //文件域
                 let field_name = field.name();
                 if Some("file") == field_name {
-                    if let (Some(content_length), Some(hash), Some(token)) = (
-                        field_map.remove("size"),
-                        field_map.remove("sha512"),
-                        field_map.remove("token"),
-                    ) {
+                    if let Some(content_length) = field_map.remove("size") {
                         match u64::from_str_radix(&content_length, 10) {
                             Err(err) => {
                                 log::error!("size不是正整型数字, {:?}", err);
@@ -247,12 +207,7 @@ async fn handle_multipart(
                                     log::error!("上传的文件内容为空");
                                     ret_opt.replace(Err("Empty file is not allowed".into()));
                                     consume_field_data(&mut field).await?;
-                                } else if let Err(err) = validate_token(&context, &hash, &token) {
-                                    log::error!("token无效, {:?}", err);
-                                    ret_opt.replace(Err(err));
-                                    consume_field_data(&mut field).await?;
                                 } else {
-                                    let hash = Arc::new(hash);
                                     let existed = get_file_meta(&context, &hash).await.is_ok();
                                     if existed {
                                         //文件存在的情况不访问oss服务
@@ -269,7 +224,7 @@ async fn handle_multipart(
                                             let mut out: [u8; 64] = [0; 64];
                                             hasher.result(&mut out);
                                             let actual_hash = BASE64_STANDARD.encode(&out);
-                                            if &actual_hash != hash.as_ref() {
+                                            if actual_hash != hash {
                                                 log::error!("sha512和文件的实际hash不一致");
                                                 ret_opt.replace(Err(
                                                     "Sha512 of content is invalid".into(),
@@ -308,9 +263,7 @@ async fn handle_multipart(
                                             actual_content_length.load(Ordering::Relaxed);
                                         if content_length != actual_content_length as u64 {
                                             log::error!("上传的文件实际大小不一致");
-                                            if let Err(err) =
-                                                delete_file(&context, &hash, None).await
-                                            {
+                                            if let Err(err) = delete_file(&context, &hash).await {
                                                 log::error!("移除错误的上传文件失败, {:?}", err);
                                             }
                                             ret_opt.replace(Err("File size not match".into()));
@@ -320,10 +273,9 @@ async fn handle_multipart(
                                             let mut out: [u8; 64] = [0; 64];
                                             hasher.lock().unwrap().result(&mut out);
                                             let actual_hash = BASE64_STANDARD.encode(&out);
-                                            if &actual_hash != hash.as_ref() {
+                                            if actual_hash != hash {
                                                 log::error!("sha512和文件的实际hash不一致");
-                                                if let Err(err) =
-                                                    delete_file(&context, &hash, None).await
+                                                if let Err(err) = delete_file(&context, &hash).await
                                                 {
                                                     log::error!(
                                                         "移除错误的上传文件失败, {:?}",
@@ -384,12 +336,16 @@ pub async fn put(
         .get(CONTENT_TYPE)
         .and_then(|ct| ct.to_str().ok())
         .and_then(|ct| multer::parse_boundary(ct).ok());
-    if let Some(boundary) = boundary {
+    let sha512 = req.headers().get("X-sha512");
+    let sha512 = sha512
+        .map(|sha512| sha512.to_str().map(|sha512| sha512.to_string()).ok())
+        .flatten();
+    if let (Some(boundary), Some(sha512)) = (boundary, sha512) {
         let body_stream = BodyStream::new(req.into_body()).filter_map(|result| async move {
             result.map(|frame| frame.into_data().ok()).transpose()
         });
         let multipart = Multipart::new(body_stream, boundary);
-        let resp = match handle_multipart(&context, multipart).await {
+        let resp = match handle_multipart(&context, multipart, sha512).await {
             Ok(key) => Ok(PutResp { key: key }),
             Err(err) => {
                 log::error!("请求格式不正确, {:?}", err);
@@ -412,11 +368,7 @@ pub async fn put(
 async fn delete_file(
     context: &Context,
     key: &str,
-    token: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Some(token) = token {
-        validate_token(context, key, &token)?;
-    }
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
     let _resp = oss_client
@@ -434,15 +386,13 @@ pub async fn delete(
 ) -> Result<Response<Body>, hyper::Error> {
     let req_body = req.into_body().collect().await?.to_bytes();
     let resp = match serde_json::from_slice::<DeleteReq>(&req_body) {
-        Ok(delete_req) => {
-            match delete_file(&context, &delete_req.key, Some(delete_req.token)).await {
-                Ok(()) => Ok(()),
-                Err(err) => {
-                    log::error!("删除文件失败, {:?}", err);
-                    Err(ErrNo::CommonError(LightString::from_static("删除文件失败")))
-                }
+        Ok(delete_req) => match delete_file(&context, &delete_req.key).await {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                log::error!("删除文件失败, {:?}", err);
+                Err(ErrNo::CommonError(LightString::from_static("删除文件失败")))
             }
-        }
+        },
         Err(err) => {
             log::error!("请求参数格式错误: {:?}", err);
             Err(ErrNo::ParamFormatError)

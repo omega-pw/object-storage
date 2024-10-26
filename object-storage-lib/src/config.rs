@@ -12,6 +12,5 @@ pub struct Oss {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    pub aes_key: [u8; 32],
     pub oss: Oss,
 }

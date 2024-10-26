@@ -1,7 +1,6 @@
 mod action;
 mod config;
 mod context;
-mod utils;
 
 use async_trait::async_trait;
 pub use config::Config;
@@ -19,7 +18,7 @@ use tihu_native::http::Body;
 use tihu_native::http::BoxBody;
 use tihu_native::http::HttpHandler;
 
-const BLOB_PREFIX: &'static str = "/blob/";
+pub const BLOB_PREFIX: &'static str = "/blob/";
 const API_PREFIX: &'static str = "/api/oss/";
 
 pub struct OssHandler {
