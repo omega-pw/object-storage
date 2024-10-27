@@ -18,7 +18,7 @@ use tihu_native::http::Body;
 use tihu_native::http::BoxBody;
 use tihu_native::http::HttpHandler;
 
-pub const BLOB_PREFIX: &'static str = "/blob/";
+pub const KEY_PREFIX: &'static str = "/blob/";
 const API_PREFIX: &'static str = "/api/oss/";
 
 pub struct OssHandler {
@@ -39,7 +39,7 @@ impl OssHandler {
 #[async_trait]
 impl HttpHandler for OssHandler {
     fn namespace(&self) -> &[&'static str] {
-        return &[BLOB_PREFIX, API_PREFIX];
+        return &[KEY_PREFIX, API_PREFIX];
     }
     async fn handle(
         &self,
@@ -67,9 +67,9 @@ async fn dispatch(
     prefix: &str,
 ) -> Result<Response<Body>, hyper::Error> {
     let (_, route) = request.uri().path().split_at(prefix.len());
-    let blob_prefix = BLOB_PREFIX;
-    if route.starts_with(blob_prefix) {
-        let key = String::from_utf8_lossy(&route.as_bytes()[blob_prefix.len()..]).into_owned();
+    let key_prefix = KEY_PREFIX;
+    if route.starts_with(key_prefix) {
+        let key = String::from_utf8_lossy(&route.as_bytes()[key_prefix.len()..]).into_owned();
         if key.is_empty() {
             let mut response = text_response("file not found!");
             *response.status_mut() = StatusCode::NOT_FOUND;
@@ -83,7 +83,7 @@ async fn dispatch(
             *response.status_mut() = StatusCode::NOT_FOUND;
             return Ok(response);
         } else if &Method::POST == request.method() {
-            let hash = request.headers().get("X-hash");
+            let hash = request.headers().get("X-Hash");
             let hash = hash
                 .map(|hash| hash.to_str().map(|hash| hash.to_string()).ok())
                 .flatten();

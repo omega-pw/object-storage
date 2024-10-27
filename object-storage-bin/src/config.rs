@@ -22,6 +22,7 @@ pub struct Config {
     pub log_cfg_path: Option<String>,
     pub aes_key: [u8; 32],
     pub oss: Oss,
+    pub key_prefix: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,6 +32,7 @@ pub struct OriginConfig {
     pub log_cfg_path: Option<String>,
     pub aes_key: String,
     pub oss: Oss,
+    pub key_prefix: Option<String>,
 }
 
 pub fn load_env_cfg(env_cfg_path: &str) -> Result<Config, String> {
@@ -46,6 +48,7 @@ pub fn load_env_cfg(env_cfg_path: &str) -> Result<Config, String> {
             log_cfg_path,
             aes_key,
             oss,
+            key_prefix,
         }) => {
             let aes_key_bytes = BASE64_STANDARD.decode(&aes_key).map_err(|err| -> String {
                 log::error!("{:?}", err);
@@ -65,6 +68,7 @@ pub fn load_env_cfg(env_cfg_path: &str) -> Result<Config, String> {
                 log_cfg_path: log_cfg_path,
                 aes_key: aes_key,
                 oss,
+                key_prefix: key_prefix,
             });
         }
         Err(err) => {

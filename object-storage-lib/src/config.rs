@@ -13,4 +13,5 @@ pub struct Oss {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub oss: Oss,
+    pub key_prefix: Option<LightString>,
 }

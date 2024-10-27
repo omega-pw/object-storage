@@ -67,6 +67,8 @@ async fn get_file_meta(
 ) -> Result<GetObjectAttributesOutput, Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
+    let key_prefix = context.get_key_prefix();
+    let key = format!("{}{}", key_prefix, key);
     let resp = oss_client
         .get_object_attributes()
         .bucket(bucket.as_ref())
@@ -82,10 +84,12 @@ async fn get_file(
 ) -> Result<Response<Body>, Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
+    let key_prefix = context.get_key_prefix();
+    let key = format!("{}{}", key_prefix, get_req.key);
     match oss_client
         .get_object()
         .bucket(bucket.as_ref())
-        .key(&get_req.key)
+        .key(key)
         .send()
         .await
     {
@@ -163,6 +167,8 @@ async fn save_file(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
+    let key_prefix = context.get_key_prefix();
+    let key = format!("{}{}", key_prefix, key);
     let _resp = oss_client
         .put_object()
         .bucket(bucket.as_ref())
@@ -374,6 +380,8 @@ async fn delete_file(
     context: &Context,
     key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let key_prefix = context.get_key_prefix();
+    let key = format!("{}{}", key_prefix, key);
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
     let _resp = oss_client

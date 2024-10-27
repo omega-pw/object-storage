@@ -109,13 +109,13 @@ async fn dispatch(
     aes_key: [u8; 32],
 ) -> Result<Response<Body>, hyper::Error> {
     let route = req.uri().path();
-    if !route.starts_with(object_storage_lib::BLOB_PREFIX) {
-        let token = req.headers().get("X-token");
+    if !route.starts_with(object_storage_lib::KEY_PREFIX) {
+        let token = req.headers().get("X-Token");
         let token = token.map(|token| token.to_str().ok()).flatten();
-        let sha512 = req.headers().get("X-sha512");
-        let sha512 = sha512.map(|sha512| sha512.to_str().ok()).flatten();
-        if let (Some(token), Some(sha512)) = (token, sha512) {
-            if let Err(err) = validate_token(&aes_key, sha512, token) {
+        let hash = req.headers().get("X-Hash");
+        let hash = hash.map(|hash| hash.to_str().ok()).flatten();
+        if let (Some(token), Some(hash)) = (token, hash) {
+            if let Err(err) = validate_token(&aes_key, hash, token) {
                 log::error!("check permission failed: {}", err);
                 return Ok(Response::builder()
                     .status(StatusCode::BAD_REQUEST)
@@ -186,6 +186,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 region: oss.region.into(),
                 bucket: oss.bucket.into(),
             },
+            key_prefix: config.key_prefix.map(From::from),
         },
         adjust_error_code,
     )

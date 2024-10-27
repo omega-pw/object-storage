@@ -55,6 +55,15 @@ impl Context {
         return self.oss_client.clone();
     }
 
+    pub fn get_key_prefix(&self) -> &str {
+        return self
+            .config
+            .key_prefix
+            .as_ref()
+            .map(|key_prefix| key_prefix.as_str())
+            .unwrap_or("");
+    }
+
     fn adjust_error_code(&self, error_code: i32) -> i32 {
         let adjust_error_code = &self.adjust_error_code;
         adjust_error_code(error_code)
