@@ -7,6 +7,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use config::Config;
 use encrypt::decrypt_by_aes_256;
+use headers::{ContentType, HeaderMapExt};
 use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
@@ -24,6 +25,7 @@ use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tihu_native::http::Body;
+use tihu_native::http::HttpDataCache;
 use tihu_native::http::HttpHandler;
 use tokio::net::TcpListener;
 
@@ -67,6 +69,12 @@ fn init_logger(log_cfg_path: Option<&str>) -> Result<(), anyhow::Error> {
         }
     }
     return Ok(());
+}
+
+fn response_html(content: String) -> Response<Body> {
+    let mut response = Response::new(Body::from(content));
+    response.headers_mut().typed_insert(ContentType::html());
+    return response;
 }
 
 fn validate_token(
@@ -129,8 +137,20 @@ async fn dispatch(
                 .unwrap());
         }
     }
-    let response = handler.handle(req, remote_addr, None).await?;
-    return Ok(response.map(From::from));
+    let mut data_cache = HttpDataCache::new();
+    match handler
+        .handle(req, remote_addr, &mut data_cache, None)
+        .await
+    {
+        Ok(response) => {
+            return Ok(response.map(From::from));
+        }
+        Err(err) => {
+            let mut response = response_html(err.to_string());
+            *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+            return Ok(response);
+        }
+    }
 }
 
 pub async fn start_http_service(

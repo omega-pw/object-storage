@@ -16,6 +16,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tihu_native::http::Body;
 use tihu_native::http::BoxBody;
+use tihu_native::http::HttpDataCache;
 use tihu_native::http::HttpHandler;
 
 pub const KEY_PREFIX: &'static str = "/blob/";
@@ -45,8 +46,9 @@ impl HttpHandler for OssHandler {
         &self,
         request: Request<Incoming>,
         _remote_addr: SocketAddr,
+        _data_cache: &mut HttpDataCache,
         prefix: Option<&str>,
-    ) -> Result<Response<BoxBody>, hyper::Error> {
+    ) -> Result<Response<BoxBody>, anyhow::Error> {
         let prefix = prefix.unwrap_or("");
         let resp = dispatch(self.context.clone(), request, prefix).await?;
         return Ok(resp.map(|body| body.into_inner()));
