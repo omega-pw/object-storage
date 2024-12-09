@@ -1,6 +1,6 @@
 [package]
 name = "object-storage-lib"
-version = "0.1.6"
+version = "0.1.7"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,7 +12,7 @@ num-bigint = "0.4"
 num-traits = "0.2"
 num-integer = "0.1"
 async-trait = "0.1"
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
 futures = "0.3"
 http = "1"
@@ -20,7 +20,7 @@ headers = "0.4"
 rust-crypto = "0.2"
 base64 = "0.22"
 tihu = "0.1"
-tihu-native = "0.1.11"
+tihu-native = "0.1"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 sync_wrapper = { version = "1", features = ["futures"] }
 pin-project = "1"
