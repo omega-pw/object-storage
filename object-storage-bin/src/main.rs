@@ -25,8 +25,8 @@ use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tihu_native::http::Body;
-use tihu_native::http::HttpDataCache;
 use tihu_native::http::HttpHandler;
+use tihu_native::http::RequestData;
 use tokio::net::TcpListener;
 
 pub fn load_config() -> Config {
@@ -137,9 +137,9 @@ async fn dispatch(
                 .unwrap());
         }
     }
-    let mut data_cache = HttpDataCache::new();
+    let mut request_data = RequestData::new();
     match handler
-        .handle(req, remote_addr, &mut data_cache, None)
+        .handle(req, remote_addr, &mut request_data, None)
         .await
     {
         Ok(response) => {
