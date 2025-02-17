@@ -1,6 +1,6 @@
 [package]
 name = "object-storage-lib"
-version = "0.1.8"
+version = "0.1.9"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -20,7 +20,7 @@ headers = "0.4"
 rust-crypto = "0.2"
 base64 = "0.22"
 tihu = "0.1"
-tihu-native = "0.1.14"
+tihu-native = "0.1.15"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 sync_wrapper = { version = "1", features = ["futures"] }
 pin-project = "1"
@@ -33,4 +33,4 @@ serde_json = "1"
 aws-types = "1"
 aws-smithy-http = "0.60"
 aws-sdk-s3 = "0.39"
-object-storage-sdk = { version = "0.1.1", path="../object-storage-sdk" }
+object-storage-sdk = { version = "0.1.3", path="../object-storage-sdk" }

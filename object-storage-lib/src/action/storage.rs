@@ -63,16 +63,14 @@ pub fn sha512(data: &[u8]) -> [u8; 64] {
 
 async fn get_file_meta(
     context: &Context,
-    key: &str,
+    full_key: &str,
 ) -> Result<GetObjectAttributesOutput, Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
-    let key_prefix = context.get_key_prefix();
-    let key = format!("{}{}", key_prefix, key);
     let resp = oss_client
         .get_object_attributes()
         .bucket(bucket.as_ref())
-        .key(key)
+        .key(full_key)
         .send()
         .await?;
     return Ok(resp);
@@ -84,12 +82,10 @@ async fn get_file(
 ) -> Result<Response<Body>, Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
-    let key_prefix = context.get_key_prefix();
-    let key = format!("{}{}", key_prefix, get_req.key);
     match oss_client
         .get_object()
         .bucket(bucket.as_ref())
-        .key(key)
+        .key(get_req.key)
         .send()
         .await
     {
@@ -163,16 +159,14 @@ async fn save_file(
     content_length: u64,
     content_type: impl Into<String>,
     data: ByteStream,
-    key: &str,
+    full_key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
-    let key_prefix = context.get_key_prefix();
-    let key = format!("{}{}", key_prefix, key);
     let _resp = oss_client
         .put_object()
         .bucket(bucket.as_ref())
-        .key(key)
+        .key(full_key)
         .content_length(content_length as i64)
         .content_type(content_type)
         .body(data)
@@ -193,6 +187,7 @@ async fn consume_field_data<'a>(
 async fn handle_multipart(
     context: &Arc<Context>,
     mut multipart: Multipart<'static>,
+    key_prefix: &str,
     hash: String,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let mut field_map: HashMap<String, String> = HashMap::new();
@@ -222,7 +217,8 @@ async fn handle_multipart(
                                     ret_opt.replace(Err("Empty file is not allowed".into()));
                                     consume_field_data(&mut field).await?;
                                 } else {
-                                    let existed = get_file_meta(&context, &hash).await.is_ok();
+                                    let full_key = format!("{}{}", key_prefix, hash);
+                                    let existed = get_file_meta(&context, &full_key).await.is_ok();
                                     if existed {
                                         //文件存在的情况不访问oss服务
                                         let mut actual_content_length = 0;
@@ -248,7 +244,6 @@ async fn handle_multipart(
                                             }
                                         }
                                     } else {
-                                        let hash_clone = hash.clone();
                                         let actual_content_length = Arc::new(AtomicUsize::new(0));
                                         let actual_content_length_clone =
                                             actual_content_length.clone();
@@ -270,14 +265,15 @@ async fn handle_multipart(
                                             ByteStream::from(SdkBody::from_body_1_x(
                                                 Body::from_bytes_stream(new_stream),
                                             )),
-                                            &hash_clone,
+                                            &full_key,
                                         )
                                         .await?;
                                         let actual_content_length =
                                             actual_content_length.load(Ordering::Relaxed);
                                         if content_length != actual_content_length as u64 {
                                             log::error!("上传的文件实际大小不一致");
-                                            if let Err(err) = delete_file(&context, &hash).await {
+                                            if let Err(err) = delete_file(&context, &full_key).await
+                                            {
                                                 log::error!("移除错误的上传文件失败, {:?}", err);
                                             }
                                             ret_opt.replace(Err("File size not match".into()));
@@ -289,7 +285,8 @@ async fn handle_multipart(
                                             let actual_hash = BASE64_STANDARD.encode(&out);
                                             if actual_hash != hash {
                                                 log::error!("sha512和文件的实际hash不一致");
-                                                if let Err(err) = delete_file(&context, &hash).await
+                                                if let Err(err) =
+                                                    delete_file(&context, &full_key).await
                                                 {
                                                     log::error!(
                                                         "移除错误的上传文件失败, {:?}",
@@ -344,6 +341,7 @@ pub struct PutResp {
 pub async fn put(
     context: Arc<Context>,
     req: Request<Incoming>,
+    key_prefix: &str,
     hash: String,
 ) -> Result<Response<Body>, hyper::Error> {
     let boundary = req
@@ -356,7 +354,7 @@ pub async fn put(
             result.map(|frame| frame.into_data().ok()).transpose()
         });
         let multipart = Multipart::new(body_stream, boundary);
-        let resp = match handle_multipart(&context, multipart, hash).await {
+        let resp = match handle_multipart(&context, multipart, key_prefix, hash).await {
             Ok(key) => Ok(PutResp { key: key }),
             Err(err) => {
                 log::error!("请求格式不正确, {:?}", err);
@@ -378,16 +376,14 @@ pub async fn put(
 
 async fn delete_file(
     context: &Context,
-    key: &str,
+    full_key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let key_prefix = context.get_key_prefix();
-    let key = format!("{}{}", key_prefix, key);
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
     let _resp = oss_client
         .delete_object()
         .bucket(bucket.as_ref())
-        .key(key)
+        .key(full_key)
         .send()
         .await?;
     return Ok(());

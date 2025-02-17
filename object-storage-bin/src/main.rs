@@ -24,10 +24,14 @@ use object_storage_lib::OssHandler;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tihu::LightString;
 use tihu_native::http::Body;
 use tihu_native::http::HttpHandler;
 use tihu_native::http::RequestData;
 use tokio::net::TcpListener;
+
+const BLOB_PREFIX: &'static str = "/blob/";
+const FILE_PREFIX: &'static str = "/file/";
 
 pub fn load_config() -> Config {
     let mut args = Vec::new();
@@ -117,7 +121,10 @@ async fn dispatch(
     aes_key: [u8; 32],
 ) -> Result<Response<Body>, hyper::Error> {
     let route = req.uri().path();
-    if !route.starts_with(object_storage_lib::KEY_PREFIX) {
+    if [BLOB_PREFIX, FILE_PREFIX]
+        .iter()
+        .all(|path_prefix| !route.starts_with(path_prefix))
+    {
         let token = req.headers().get("X-Token");
         let token = token.map(|token| token.to_str().ok()).flatten();
         let hash = req.headers().get("X-Hash");
@@ -197,7 +204,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .map(|log_cfg_path| log_cfg_path.as_str()),
     )?;
     let oss = config.oss;
-    let handler = OssHandler::try_init_from_config(
+    let mut handler = OssHandler::try_init_from_config(
         HandlerConfig {
             oss: Oss {
                 access_key: oss.access_key.into(),
@@ -206,11 +213,24 @@ async fn main() -> Result<(), anyhow::Error> {
                 region: oss.region.into(),
                 bucket: oss.bucket.into(),
             },
-            key_prefix: config.key_prefix.map(From::from),
         },
         adjust_error_code,
     )
     .await?;
+    handler
+        .add_get_mapping(
+            LightString::from_static(BLOB_PREFIX),
+            LightString::from_static("blob/"),
+        )
+        .add_get_mapping(
+            LightString::from_static(FILE_PREFIX),
+            LightString::from_static("file/"),
+        )
+        .add_upload_mapping(
+            LightString::from_static("/api/oss/upload"),
+            LightString::from_static("blob/"),
+        )
+        .set_delete_path(LightString::from_static("/api/oss/delete"));
     let bind_addr = SocketAddr::new(config.host, config.port);
     let handler = Arc::new(handler);
     start_http_service(handler, bind_addr, config.aes_key).await?;
