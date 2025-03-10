@@ -11,11 +11,15 @@ use base64::engine::Engine;
 use base64::prelude::BASE64_STANDARD;
 use crypto::digest::Digest;
 use crypto::sha2::Sha512;
+use form_urlencoded::Serializer;
 use futures::stream::Stream;
 use futures::stream::TryStreamExt;
 use futures::StreamExt;
 use headers::Header;
-use headers::{ContentLength, ContentType, ETag, HeaderMapExt, LastModified};
+use headers::{
+    ContentDisposition, ContentEncoding, ContentLength, ContentRange, ContentType, ETag,
+    HeaderMapExt, LastModified,
+};
 use http::HeaderValue;
 use http_body_util::BodyExt;
 use http_body_util::BodyStream;
@@ -38,6 +42,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Poll;
+use std::usize;
 use tihu::LightString;
 use tihu_native::http::Body;
 use tihu_native::ErrNo;
@@ -93,6 +98,12 @@ async fn get_file(
             let mut response = Response::new(Body::from_bytes_stream(
                 FuturesStreamCompatByteStream(resp.body),
             ));
+            if let Some(content_encoding) = resp.content_encoding {
+                response.headers_mut().insert(
+                    ContentEncoding::name(),
+                    HeaderValue::from_str(&content_encoding)?,
+                );
+            }
             if let Some(content_type) = resp.content_type {
                 response
                     .headers_mut()
@@ -104,6 +115,17 @@ async fn get_file(
                         .headers_mut()
                         .typed_insert(ContentLength(content_length as u64));
                 }
+            }
+            if let Some(content_range) = resp.content_range {
+                response
+                    .headers_mut()
+                    .insert(ContentRange::name(), HeaderValue::from_str(&content_range)?);
+            }
+            if let Some(content_disposition) = resp.content_disposition {
+                response.headers_mut().insert(
+                    ContentDisposition::name(),
+                    HeaderValue::from_str(&content_disposition)?,
+                );
             }
             if let Some(last_modified) = resp.last_modified {
                 response.headers_mut().insert(
@@ -158,16 +180,23 @@ async fn save_file(
     context: &Context,
     content_length: u64,
     content_type: impl Into<String>,
+    filename: &str,
     data: ByteStream,
     full_key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
+    let attachment: String = Serializer::new(String::new())
+        .append_pair("filename", filename)
+        .finish()
+        .replacen("+", "%20", usize::MAX);
+    let content_disposition = format!("attachment; {}", attachment);
     let _resp = oss_client
         .put_object()
         .bucket(bucket.as_ref())
         .key(full_key)
         .content_length(content_length as i64)
+        .content_disposition(content_disposition)
         .content_type(content_type)
         .body(data)
         .send()
@@ -197,8 +226,8 @@ async fn handle_multipart(
         if ret_opt.is_some() {
             consume_field_data(&mut field).await?;
         } else {
-            if let (true, Some(content_type)) = (
-                field.file_name().is_some(),
+            if let (Some(file_name), Some(content_type)) = (
+                field.file_name().map(ToString::to_string),
                 field.content_type().map(Clone::clone),
             ) {
                 //文件域
@@ -262,6 +291,7 @@ async fn handle_multipart(
                                             &context,
                                             content_length,
                                             content_type.as_ref(),
+                                            &file_name,
                                             ByteStream::from(SdkBody::from_body_1_x(
                                                 Body::from_bytes_stream(new_stream),
                                             )),
