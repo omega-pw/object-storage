@@ -81,9 +81,18 @@ async fn get_file_meta(
     return Ok(resp);
 }
 
+fn build_content_disposition_header(filename: &str) -> String {
+    let attachment: String = Serializer::new(String::new())
+        .append_pair("filename", filename)
+        .finish()
+        .replacen("+", "%20", usize::MAX);
+    return format!("attachment; {}", attachment);
+}
+
 async fn get_file(
     context: &Context,
     get_req: GetReq,
+    filename: Option<&str>,
 ) -> Result<Response<Body>, Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
@@ -121,7 +130,10 @@ async fn get_file(
                     .headers_mut()
                     .insert(ContentRange::name(), HeaderValue::from_str(&content_range)?);
             }
-            if let Some(content_disposition) = resp.content_disposition {
+            let content_disposition = filename
+                .map(|filename| build_content_disposition_header(filename))
+                .and(resp.content_disposition);
+            if let Some(content_disposition) = content_disposition {
                 response.headers_mut().insert(
                     ContentDisposition::name(),
                     HeaderValue::from_str(&content_disposition)?,
@@ -161,8 +173,12 @@ async fn get_file(
     }
 }
 
-pub async fn get(context: Arc<Context>, get_req: GetReq) -> Result<Response<Body>, hyper::Error> {
-    match get_file(&context, get_req).await {
+pub async fn get(
+    context: Arc<Context>,
+    get_req: GetReq,
+    filename: Option<&str>,
+) -> Result<Response<Body>, hyper::Error> {
+    match get_file(&context, get_req, filename).await {
         Ok(resp) => {
             return Ok(resp);
         }
@@ -186,11 +202,7 @@ async fn save_file(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let oss_client = context.get_oss_client();
     let bucket = context.get_bucket();
-    let attachment: String = Serializer::new(String::new())
-        .append_pair("filename", filename)
-        .finish()
-        .replacen("+", "%20", usize::MAX);
-    let content_disposition = format!("attachment; {}", attachment);
+    let content_disposition = build_content_disposition_header(filename);
     let _resp = oss_client
         .put_object()
         .bucket(bucket.as_ref())

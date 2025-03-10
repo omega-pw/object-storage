@@ -12,6 +12,7 @@ use hyper::body::Incoming;
 use hyper::{Request, Response, StatusCode};
 use object_storage_sdk as sdk;
 use sdk::storage::GetReq;
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tihu::LightString;
@@ -110,8 +111,17 @@ impl HttpHandler for OssHandler {
                     *response.status_mut() = StatusCode::NOT_FOUND;
                     return Ok(response.map(From::from));
                 } else {
+                    let query = request
+                        .uri()
+                        .query()
+                        .map(|query| {
+                            form_urlencoded::parse(query.as_bytes()).collect::<HashMap<_, _>>()
+                        })
+                        .unwrap_or_default();
+                    let filename = query.get("filename").map(|filename| filename.as_ref());
                     let response =
-                        action::storage::get(self.context.clone(), GetReq { key: key }).await?;
+                        action::storage::get(self.context.clone(), GetReq { key: key }, filename)
+                            .await?;
                     return Ok(response.map(From::from));
                 }
             }
