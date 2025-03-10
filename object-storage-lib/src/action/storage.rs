@@ -132,7 +132,7 @@ async fn get_file(
             }
             let content_disposition = filename
                 .map(|filename| build_content_disposition_header(filename))
-                .and(resp.content_disposition);
+                .or(resp.content_disposition);
             if let Some(content_disposition) = content_disposition {
                 response.headers_mut().insert(
                     ContentDisposition::name(),
