@@ -15,28 +15,28 @@ use sdk::storage::GetReq;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tihu::LightString;
+use tihu::SharedString;
 use tihu_native::http::Body;
 use tihu_native::http::BoxBody;
 use tihu_native::http::HttpHandler;
 use tihu_native::http::RequestData;
 
 pub struct GetMapping {
-    path_prefix: LightString, //请求路径前缀
-    key_prefix: LightString,  //资源对象前缀
+    path_prefix: SharedString, //请求路径前缀
+    key_prefix: SharedString,  //资源对象前缀
 }
 
 pub struct UploadMapping {
-    path: LightString,       //上传请求路径
-    key_prefix: LightString, //资源对象前缀
+    path: SharedString,       //上传请求路径
+    key_prefix: SharedString, //资源对象前缀
 }
 
 pub struct OssHandler {
     context: Arc<Context>,
     get_mapping: Vec<GetMapping>,
     upload_mapping: Vec<UploadMapping>,
-    delete_path: Option<LightString>,
-    namespaces: Vec<LightString>,
+    delete_path: Option<SharedString>,
+    namespaces: Vec<SharedString>,
 }
 
 impl OssHandler {
@@ -57,8 +57,8 @@ impl OssHandler {
 
     pub fn add_get_mapping(
         &mut self,
-        path_prefix: LightString,
-        key_prefix: LightString,
+        path_prefix: SharedString,
+        key_prefix: SharedString,
     ) -> &mut Self {
         self.get_mapping.push(GetMapping {
             path_prefix: path_prefix.clone(),
@@ -68,7 +68,11 @@ impl OssHandler {
         return self;
     }
 
-    pub fn add_upload_mapping(&mut self, path: LightString, key_prefix: LightString) -> &mut Self {
+    pub fn add_upload_mapping(
+        &mut self,
+        path: SharedString,
+        key_prefix: SharedString,
+    ) -> &mut Self {
         self.upload_mapping.push(UploadMapping {
             path: path.clone(),
             key_prefix: key_prefix,
@@ -77,7 +81,7 @@ impl OssHandler {
         return self;
     }
 
-    pub fn set_delete_path(&mut self, delete_path: LightString) -> &mut Self {
+    pub fn set_delete_path(&mut self, delete_path: SharedString) -> &mut Self {
         self.delete_path.replace(delete_path);
         return self;
     }
@@ -85,7 +89,7 @@ impl OssHandler {
 
 #[async_trait]
 impl HttpHandler for OssHandler {
-    fn namespace(&self) -> &[LightString] {
+    fn namespace(&self) -> &[SharedString] {
         return &self.namespaces;
     }
     async fn handle(

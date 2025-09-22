@@ -9,7 +9,7 @@ use aws_types::sdk_config::SdkConfig;
 use serde::Serialize;
 use std::sync::Arc;
 use tihu::api::Response;
-use tihu::LightString;
+use tihu::SharedString;
 use tihu_native::ErrNo;
 
 fn init_oss_client(oss: &Oss) -> Result<Client, http::uri::InvalidUri> {
@@ -86,7 +86,7 @@ impl Context {
         }
     }
 
-    pub fn get_bucket(&self) -> LightString {
+    pub fn get_bucket(&self) -> SharedString {
         return self.config.oss.bucket.clone();
     }
 }

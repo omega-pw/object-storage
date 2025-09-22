@@ -43,7 +43,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::task::Poll;
 use std::usize;
-use tihu::LightString;
+use tihu::SharedString;
 use tihu_native::http::Body;
 use tihu_native::ErrNo;
 
@@ -400,7 +400,7 @@ pub async fn put(
             Ok(key) => Ok(PutResp { key: key }),
             Err(err) => {
                 log::error!("请求格式不正确, {:?}", err);
-                Err(ErrNo::CommonError(LightString::from_static(
+                Err(ErrNo::CommonError(SharedString::from_static(
                     "请求格式不正确",
                 )))
             }
@@ -449,7 +449,9 @@ pub async fn delete(
             Ok(()) => Ok(()),
             Err(err) => {
                 log::error!("删除文件失败, {:?}", err);
-                Err(ErrNo::CommonError(LightString::from_static("删除文件失败")))
+                Err(ErrNo::CommonError(SharedString::from_static(
+                    "删除文件失败",
+                )))
             }
         },
         Err(err) => {

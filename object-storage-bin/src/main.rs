@@ -24,7 +24,7 @@ use object_storage_lib::OssHandler;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tihu::LightString;
+use tihu::SharedString;
 use tihu_native::http::Body;
 use tihu_native::http::HttpHandler;
 use tihu_native::http::RequestData;
@@ -219,18 +219,18 @@ async fn main() -> Result<(), anyhow::Error> {
     .await?;
     handler
         .add_get_mapping(
-            LightString::from_static(BLOB_PREFIX),
-            LightString::from_static("blob/"),
+            SharedString::from_static(BLOB_PREFIX),
+            SharedString::from_static("blob/"),
         )
         .add_get_mapping(
-            LightString::from_static(FILE_PREFIX),
-            LightString::from_static("file/"),
+            SharedString::from_static(FILE_PREFIX),
+            SharedString::from_static("file/"),
         )
         .add_upload_mapping(
-            LightString::from_static("/api/oss/upload"),
-            LightString::from_static("blob/"),
+            SharedString::from_static("/api/oss/upload"),
+            SharedString::from_static("blob/"),
         )
-        .set_delete_path(LightString::from_static("/api/oss/delete"));
+        .set_delete_path(SharedString::from_static("/api/oss/delete"));
     let bind_addr = SocketAddr::new(config.host, config.port);
     let handler = Arc::new(handler);
     start_http_service(handler, bind_addr, config.aes_key).await?;

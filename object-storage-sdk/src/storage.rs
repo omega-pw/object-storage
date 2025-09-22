@@ -1,7 +1,7 @@
 use serde;
 use serde::{Deserialize, Serialize};
 // use tihu::Api;
-// use tihu::LightString;
+// use tihu::SharedString;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetReq {
@@ -22,7 +22,7 @@ pub type DeleteResp = bool;
 // impl Api for DeleteApi {
 //     type Input = DeleteReq;
 //     type Output = DeleteResp;
-//     fn namespace() -> LightString {
-//         return LightString::from_static(DELETE_API);
+//     fn namespace() -> SharedString {
+//         return SharedString::from_static(DELETE_API);
 //     }
 // }

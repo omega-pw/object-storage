@@ -3,9 +3,9 @@ use crypto::aes::KeySize;
 use crypto::blockmodes::PkcsPadding;
 use crypto::buffer::{BufferResult, ReadBuffer, RefReadBuffer, RefWriteBuffer, WriteBuffer};
 use log;
-use tihu::LightString;
+use tihu::SharedString;
 
-pub fn decrypt_by_aes_256(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, LightString> {
+pub fn decrypt_by_aes_256(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, SharedString> {
     let mut decryptor = ecb_decryptor(KeySize::KeySize256, key, PkcsPadding);
     let mut final_result = Vec::<u8>::new();
     let mut read_buffer = RefReadBuffer::new(data);
@@ -14,9 +14,9 @@ pub fn decrypt_by_aes_256(data: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, LightS
     loop {
         let result = decryptor
             .decrypt(&mut read_buffer, &mut write_buffer, true)
-            .map_err(|err| -> LightString {
+            .map_err(|err| -> SharedString {
                 log::error!("Aes decrypt failed: {:?}", err);
-                LightString::from_static("Aes decrypt failed")
+                SharedString::from_static("Aes decrypt failed")
             })?;
         final_result.extend(
             write_buffer
