@@ -32,6 +32,5 @@ chrono = { version = "0.4", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 aws-types = "1"
-aws-smithy-http = "0.62"
 aws-sdk-s3 = "0.39"
 object-storage-sdk = { version = "0.1.4", path="../object-storage-sdk" }
