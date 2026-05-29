@@ -272,6 +272,7 @@ async fn handle_multipart(
                                             log::error!("上传的文件实际大小不一致");
                                             ret_opt.replace(Err("File size not match".into()));
                                         } else {
+                                            hasher.input(file_name.as_bytes());
                                             let mut out: [u8; 64] = [0; 64];
                                             hasher.result(&mut out);
                                             let actual_hash = BASE64_STANDARD.encode(&out);
@@ -323,7 +324,11 @@ async fn handle_multipart(
                                             // buffer.flush().await?;
                                             // buffer.shutdown().await?;
                                             let mut out: [u8; 64] = [0; 64];
-                                            hasher.lock().unwrap().result(&mut out);
+                                            {
+                                                let mut hasher = hasher.lock().unwrap();
+                                                hasher.input(file_name.as_bytes());
+                                                hasher.result(&mut out);
+                                            }
                                             let actual_hash = BASE64_STANDARD.encode(&out);
                                             if actual_hash != hash {
                                                 log::error!("sha512和文件的实际hash不一致");
