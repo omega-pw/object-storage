@@ -82,8 +82,16 @@ impl OssHandler {
     }
 
     pub fn set_delete_path(&mut self, delete_path: SharedString) -> &mut Self {
-        self.delete_path.replace(delete_path);
+        self.delete_path.replace(delete_path.clone());
+        self.namespaces.push(delete_path);
         return self;
+    }
+
+    pub async fn delete_file(
+        &self,
+        full_key: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        action::storage::delete_file(&self.context, full_key).await
     }
 }
 

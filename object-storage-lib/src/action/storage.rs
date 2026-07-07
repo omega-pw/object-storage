@@ -421,7 +421,7 @@ pub async fn put(
     }
 }
 
-async fn delete_file(
+pub async fn delete_file(
     context: &Context,
     full_key: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
